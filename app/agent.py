@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -15,12 +16,14 @@ class AgentState(TypedDict, total=False):
     sentiment_filter: str | None
     since_date: str | None
     source: str
+    dataset_path: str
     tool_output: dict[str, Any]
     summary: str
 
 
 def _fetch(state: AgentState) -> AgentState:
-    tool = TwitterDataTool()
+    dataset_path = state.get("dataset_path")
+    tool = TwitterDataTool(dataset_path=dataset_path) if dataset_path else TwitterDataTool()
     output = tool.run(
         keyword=state["keyword"],
         limit=state.get("limit", 50),
@@ -70,6 +73,7 @@ def run_agent(
     sentiment_filter: str | None = None,
     since_date: str | None = None,
     source: str = "dataset",
+    dataset_path: str | Path | None = None,
 ) -> dict[str, Any]:
     app = build_agent()
     result = app.invoke(
@@ -79,6 +83,7 @@ def run_agent(
             "sentiment_filter": sentiment_filter,
             "since_date": since_date,
             "source": source,
+            "dataset_path": str(dataset_path) if dataset_path else None,
         }
     )
     return {

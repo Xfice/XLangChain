@@ -98,6 +98,15 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
   -d '{"keyword":"ai","limit":5,"source":"playwright"}'
 ```
 
+Client CSV upload mode (optional):
+
+```bash
+curl -X POST "http://127.0.0.1:8000/analyze-file" \
+  -F "file=@data/sample.csv" \
+  -F "keyword=ai" \
+  -F "limit=5"
+```
+
 Health check:
 
 ```bash

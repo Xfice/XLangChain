@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from app.agent import run_agent
 from app.schemas import AnalyzeRequest, AnalyzeResponse
@@ -28,3 +31,37 @@ def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
         return AnalyzeResponse(**result)
     except Exception as exc:  # pragma: no cover - covered by tests through expected failures
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/analyze-file", response_model=AnalyzeResponse)
+async def analyze_file(
+    file: UploadFile = File(...),
+    keyword: str = Form(...),
+    limit: int = Form(50),
+    sentiment_filter: str | None = Form(None),
+    since_date: str | None = Form(None),
+) -> AnalyzeResponse:
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be a .csv")
+
+    temp_path: Path | None = None
+    try:
+        with NamedTemporaryFile(suffix=".csv", delete=False) as handle:
+            temp_path = Path(handle.name)
+            handle.write(await file.read())
+
+        result = run_agent(
+            keyword=keyword,
+            limit=limit,
+            sentiment_filter=sentiment_filter,
+            since_date=since_date,
+            source="dataset",
+            dataset_path=temp_path,
+        )
+        return AnalyzeResponse(**result)
+    except Exception as exc:  # pragma: no cover - covered by tests through expected failures
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        await file.close()
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)

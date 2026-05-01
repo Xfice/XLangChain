@@ -77,6 +77,7 @@ class TwitterDataTool:
         prefer_kaggle: bool = False,
         strict_kaggle: bool = False,
         max_rows_override: int | None = None,
+        keyword_filter: str | None = None,
     ) -> None:
         if path.exists() and not force_refresh and not prefer_kaggle:
             return
@@ -104,6 +105,7 @@ class TwitterDataTool:
                 output_csv=path,
                 selected_file=selected_file,
                 max_rows=max_rows,
+                keyword_filter=keyword_filter,
             )
         except BaseException as exc:
             if strict_kaggle:
@@ -158,7 +160,7 @@ class TwitterDataTool:
             raise FileNotFoundError(f"Dataset not found at {path}")
         return self._normalize_columns(self._read_dataset(path))
 
-    def _load_with_kaggle_refresh(self) -> pd.DataFrame:
+    def _load_with_kaggle_refresh(self, keyword: str) -> pd.DataFrame:
         path = self._resolve_dataset_path()
         runtime_max_rows = int(os.getenv("KAGGLE_MAX_ROWS_RUNTIME", "1000"))
         runtime_max_rows = max(200, min(runtime_max_rows, 5000))
@@ -167,6 +169,7 @@ class TwitterDataTool:
             force_refresh=True,
             strict_kaggle=True,
             max_rows_override=runtime_max_rows,
+            keyword_filter=keyword,
         )
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
@@ -243,7 +246,7 @@ class TwitterDataTool:
         df = (
             self._load_playwright_rows(keyword=keyword, limit=limit)
             if source == "playwright"
-            else self._load_with_kaggle_refresh() if source == "kaggle" else self._load()
+            else self._load_with_kaggle_refresh(keyword=keyword) if source == "kaggle" else self._load()
         )
         keyword_value = keyword.strip().lower()
         escaped_keyword = re.escape(keyword_value)

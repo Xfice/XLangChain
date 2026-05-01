@@ -44,11 +44,19 @@ def test_tool_kaggle_source_forces_refresh(tmp_path, monkeypatch):
     monkeypatch.setenv("KAGGLE_USERNAME", "test-user")
     monkeypatch.setenv("KAGGLE_KEY", "test-key")
 
-    def _fake_fetch_kaggle_dataset_to_csv(*, dataset, output_csv, selected_file, max_rows):
+    def _fake_fetch_kaggle_dataset_to_csv(
+        *,
+        dataset,
+        output_csv,
+        selected_file,
+        max_rows,
+        keyword_filter,
+    ):
         output_csv.write_text(
             "date,sentiment,text\n2024-02-02,4,AI refreshed row #AI\n",
             encoding="utf-8",
         )
+        assert keyword_filter == "ai"
         return output_csv
 
     monkeypatch.setattr("app.tool.fetch_kaggle_dataset_to_csv", _fake_fetch_kaggle_dataset_to_csv)
@@ -79,11 +87,19 @@ def test_tool_dataset_source_prefers_kaggle_refresh(tmp_path, monkeypatch):
     monkeypatch.setenv("KAGGLE_USERNAME", "test-user")
     monkeypatch.setenv("KAGGLE_KEY", "test-key")
 
-    def _fake_fetch_kaggle_dataset_to_csv(*, dataset, output_csv, selected_file, max_rows):
+    def _fake_fetch_kaggle_dataset_to_csv(
+        *,
+        dataset,
+        output_csv,
+        selected_file,
+        max_rows,
+        keyword_filter,
+    ):
         output_csv.write_text(
             "date,sentiment,text\n2024-03-03,4,AI refreshed from dataset mode #AI\n",
             encoding="utf-8",
         )
+        assert keyword_filter is None
         return output_csv
 
     monkeypatch.setattr("app.tool.fetch_kaggle_dataset_to_csv", _fake_fetch_kaggle_dataset_to_csv)

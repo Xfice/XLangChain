@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from zipfile import ZipFile
 
 import pandas as pd
@@ -25,7 +26,26 @@ def _balance_by_sentiment(dataframe: pd.DataFrame, max_rows: int) -> pd.DataFram
     return combined.sample(frac=1.0, random_state=42).head(max_rows).reset_index(drop=True)
 
 
-def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int) -> None:
+def _apply_keyword_filter(dataframe: pd.DataFrame, keyword_filter: str | None) -> pd.DataFrame:
+    """Filter normalized rows by keyword before saving output CSV."""
+    if not keyword_filter:
+        return dataframe
+
+    keyword_value = keyword_filter.strip().lower()
+    if not keyword_value:
+        return dataframe
+
+    escaped_keyword = re.escape(keyword_value)
+    pattern = rf"\b{escaped_keyword}\b" if re.fullmatch(r"\w+", keyword_value) else escaped_keyword
+    return dataframe[dataframe["text"].str.lower().str.contains(pattern, regex=True, na=False)]
+
+
+def _normalize_to_app_schema(
+    input_path: Path,
+    output_path: Path,
+    max_rows: int,
+    keyword_filter: str | None = None,
+) -> None:
     """Normalize arbitrary Kaggle CSV into columns: date,sentiment,text."""
     encoding_attempts = ["utf-8", "latin-1", "cp1252"]
     read_limit = max_rows * 20 if max_rows > 0 else None
@@ -100,6 +120,7 @@ def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int)
     normalized["date"] = normalized["date"].astype(str)
     normalized = normalized.dropna(subset=["text"])
     normalized = normalized[normalized["text"].str.strip() != ""]
+    normalized = _apply_keyword_filter(normalized, keyword_filter=keyword_filter)
     normalized = _balance_by_sentiment(normalized, max_rows=max_rows)
     normalized.to_csv(output_path, index=False)
 
@@ -110,6 +131,7 @@ def fetch_kaggle_dataset_to_csv(
     output_csv: Path,
     selected_file: str | None = None,
     max_rows: int = 100000,
+    keyword_filter: str | None = None,
 ) -> Path:
     """Download and normalize a Kaggle dataset to an app-compatible CSV."""
     try:
@@ -158,7 +180,12 @@ def fetch_kaggle_dataset_to_csv(
             )
         downloaded = candidates[0]
 
-    _normalize_to_app_schema(downloaded, output_csv, max_rows=max_rows)
+    _normalize_to_app_schema(
+        downloaded,
+        output_csv,
+        max_rows=max_rows,
+        keyword_filter=keyword_filter,
+    )
 
     # Clean temporary artifacts produced by Kaggle download/extract.
     zipped_download.unlink(missing_ok=True)

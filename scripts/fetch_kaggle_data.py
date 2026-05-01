@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
         help="Final local file name (used by the app), default: sample.csv",
     )
     parser.add_argument("--max-rows", type=int, default=100000)
+    parser.add_argument("--keyword-filter", default=None)
     return parser.parse_args()
 
 
@@ -46,6 +47,7 @@ def main() -> None:
         output_csv=target,
         selected_file=args.file,
         max_rows=args.max_rows,
+        keyword_filter=args.keyword_filter,
     )
     print(f"Downloaded dataset '{args.dataset}' and normalized to '{target}'.")
 
