@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 from zipfile import ZipFile
 
+import pandas as pd
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 
@@ -33,7 +34,86 @@ def parse_args() -> argparse.Namespace:
         default="sample.csv",
         help="Final local file name (used by the app), default: sample.csv",
     )
+    parser.add_argument(
+        "--max-rows",
+        type=int,
+        default=100000,
+        help="Maximum rows to keep in output CSV to control memory/size (default: 100000).",
+    )
     return parser.parse_args()
+
+
+def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int) -> None:
+    """Normalize arbitrary Kaggle CSV into columns: date,sentiment,text."""
+    lower_encoding_attempts = ["utf-8", "latin-1", "cp1252"]
+    dataframe: pd.DataFrame | None = None
+    last_error: Exception | None = None
+
+    # First try: header-based read for normal CSV datasets.
+    for encoding in lower_encoding_attempts:
+        try:
+            dataframe = pd.read_csv(input_path, nrows=max_rows, encoding=encoding, low_memory=False)
+            break
+        except Exception as exc:
+            last_error = exc
+
+    if dataframe is None:
+        raise ValueError(f"Unable to read CSV {input_path} with supported encodings.") from last_error
+
+    normalized: pd.DataFrame | None = None
+    lowered = {str(column).lower(): column for column in dataframe.columns}
+
+    text_column = None
+    sentiment_column = None
+    date_column = None
+
+    for candidate in ("text", "tweet", "content"):
+        if candidate in lowered:
+            text_column = lowered[candidate]
+            break
+    for candidate in ("sentiment", "target", "label"):
+        if candidate in lowered:
+            sentiment_column = lowered[candidate]
+            break
+    for candidate in ("date", "created_at", "timestamp"):
+        if candidate in lowered:
+            date_column = lowered[candidate]
+            break
+
+    if text_column is not None:
+        normalized = pd.DataFrame(
+            {
+                "date": dataframe[date_column] if date_column is not None else pd.NA,
+                "sentiment": dataframe[sentiment_column] if sentiment_column is not None else "unknown",
+                "text": dataframe[text_column],
+            }
+        )
+
+    # Sentiment140 fallback: 6 columns with no header.
+    if normalized is None and dataframe.shape[1] >= 6:
+        sentiment140 = pd.read_csv(
+            input_path,
+            header=None,
+            names=["sentiment", "id", "date", "query", "user", "text"],
+            usecols=["sentiment", "date", "text"],
+            nrows=max_rows,
+            encoding="latin-1",
+            low_memory=False,
+        )
+        normalized = sentiment140[["date", "sentiment", "text"]]
+
+    if normalized is None:
+        raise ValueError(
+            "Could not normalize dataset to required columns. Expected either named text columns or "
+            "Sentiment140-like 6-column format."
+        )
+
+    normalized["text"] = normalized["text"].astype(str)
+    normalized["sentiment"] = normalized["sentiment"].astype(str)
+    normalized["date"] = normalized["date"].astype(str)
+    normalized = normalized.dropna(subset=["text"])
+    normalized = normalized[normalized["text"].str.strip() != ""]
+    normalized.to_csv(output_path, index=False)
 
 
 def main() -> None:
@@ -84,11 +164,9 @@ def main() -> None:
         downloaded = candidates[0]
 
     target = output_dir / args.target_name
-    target.write_bytes(downloaded.read_bytes())
-    if downloaded != target:
-        downloaded.unlink(missing_ok=True)
+    _normalize_to_app_schema(downloaded, target, max_rows=args.max_rows)
 
-    print(f"Downloaded '{selected}' from '{args.dataset}' to '{target}'.")
+    print(f"Downloaded '{selected}' from '{args.dataset}' and normalized to '{target}'.")
 
 
 if __name__ == "__main__":

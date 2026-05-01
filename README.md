@@ -44,17 +44,20 @@ If you have a Kaggle token, you can auto-download CSV data instead of manually r
 pip install -e .[data]
 ```
 
-3. Download a dataset CSV into `data/sample.csv`:
+3. Download and normalize a dataset CSV into `data/sample.csv`:
 
 ```bash
-python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140
+python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140 --max-rows 100000
 ```
 
 You can select a specific file when a dataset has multiple CSVs:
 
 ```bash
-python scripts/fetch_kaggle_data.py --dataset <owner/dataset> --file <name.csv> --target-name sample.csv
+python scripts/fetch_kaggle_data.py --dataset <owner/dataset> --file <name.csv> --target-name sample.csv --max-rows 100000
 ```
+
+The script normalizes CSV output to the app schema (`date,sentiment,text`) and supports
+headerless Sentiment140 format.
 
 ## API usage
 
@@ -112,8 +115,14 @@ GitHub Actions workflow runs:
 
 1. Push this repo to GitHub
 2. Create a new Render Web Service
-3. Build command: `pip install -e .`
-4. Start command: `uvicorn app.api:app --host 0.0.0.0 --port $PORT`
+3. Set Render env vars:
+   - `KAGGLE_USERNAME` (secret)
+   - `KAGGLE_KEY` (secret)
+   - Optional: `KAGGLE_DATASET` (default `kazanova/sentiment140`)
+   - Optional: `KAGGLE_MAX_ROWS` (default `100000`)
+4. Use `render.yaml` from this repo (recommended), or set build/start manually:
+   - Build: `pip install -e .[data] && python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-100000} && pip install -e .`
+   - Start: `uvicorn app.api:app --host 0.0.0.0 --port $PORT`
 5. Add your live URL below
 
 Live demo URL: https://xlangchain.onrender.com
@@ -121,7 +130,7 @@ Live demo URL: https://xlangchain.onrender.com
 ## Limitations and decisions
 
 - Uses a local public dataset for deterministic and reliable behavior over live scraping
-- Kaggle data refresh can be automated with `scripts/fetch_kaggle_data.py`
+- Kaggle data refresh can be automated with `scripts/fetch_kaggle_data.py`; missing Kaggle creds will break deploy-time fetch
 - Playwright mode is intentionally minimal and opt-in (`PLAYWRIGHT_DEMO_ENABLED=true`) for demo use
 - Sentiment mapping is heuristic and based on common public dataset labels
 - Summary is deterministic (no external LLM required), which simplifies CI and reproducibility

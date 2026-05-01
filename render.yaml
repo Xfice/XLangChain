@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: x-insights-tool
+    runtime: python
+    plan: free
+    buildCommand: >
+      pip install -e .[data] &&
+      python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-100000} &&
+      pip install -e .
+    startCommand: uvicorn app.api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: KAGGLE_USERNAME
+        sync: false
+      - key: KAGGLE_KEY
+        sync: false
+      - key: KAGGLE_DATASET
+        value: kazanova/sentiment140
+      - key: KAGGLE_MAX_ROWS
+        value: "100000"
