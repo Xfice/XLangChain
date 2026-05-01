@@ -59,6 +59,20 @@ def test_tool_kaggle_source_forces_refresh(tmp_path, monkeypatch):
     assert "refreshed" in result["posts"][0]["text"].lower()
 
 
+def test_tool_kaggle_source_errors_when_credentials_missing(tmp_path, monkeypatch):
+    dataset = tmp_path / "sample.csv"
+    dataset.write_text("date,sentiment,text\n2024-01-01,4,old row\n", encoding="utf-8")
+    monkeypatch.delenv("KAGGLE_USERNAME", raising=False)
+    monkeypatch.delenv("KAGGLE_KEY", raising=False)
+
+    tool = TwitterDataTool(dataset_path=dataset)
+    try:
+        tool.run(keyword="ai", limit=5, source="kaggle")
+        assert False, "expected kaggle source to fail without credentials"
+    except ValueError as exc:
+        assert "credentials are missing" in str(exc).lower()
+
+
 def test_tool_dataset_source_prefers_kaggle_refresh(tmp_path, monkeypatch):
     dataset = tmp_path / "sample.csv"
     dataset.write_text("date,sentiment,text\n2024-01-01,4,old row\n", encoding="utf-8")

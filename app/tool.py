@@ -75,6 +75,7 @@ class TwitterDataTool:
         path: Path,
         force_refresh: bool = False,
         prefer_kaggle: bool = False,
+        strict_kaggle: bool = False,
     ) -> None:
         if path.exists() and not force_refresh and not prefer_kaggle:
             return
@@ -86,6 +87,11 @@ class TwitterDataTool:
         can_attempt_kaggle = self._has_kaggle_credentials()
 
         if not can_attempt_kaggle:
+            if strict_kaggle:
+                raise ValueError(
+                    "Kaggle fetch requested but credentials are missing. "
+                    "Set KAGGLE_USERNAME and KAGGLE_KEY."
+                )
             if had_existing:
                 return
             self._write_bootstrap_dataset(path)
@@ -99,6 +105,8 @@ class TwitterDataTool:
                 max_rows=max_rows,
             )
         except BaseException as exc:
+            if strict_kaggle:
+                raise ValueError(f"Kaggle fetch failed: {exc}") from exc
             if had_existing:
                 # Keep existing local dataset when refresh attempt fails.
                 return
@@ -151,7 +159,7 @@ class TwitterDataTool:
 
     def _load_with_kaggle_refresh(self) -> pd.DataFrame:
         path = self._resolve_dataset_path()
-        self._ensure_dataset_exists(path, force_refresh=True)
+        self._ensure_dataset_exists(path, force_refresh=True, strict_kaggle=True)
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
         return self._normalize_columns(self._read_dataset(path))
