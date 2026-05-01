@@ -35,6 +35,7 @@ This makes the system flexible for:
 - `POST /analyze`: analyze using selected `source`
 - `POST /refetch-kaggle`: explicitly refresh Kaggle dataset using payload keyword, then analyze
 - `POST /analyze-file`: analyze an uploaded CSV file (`multipart/form-data`)
+- `POST /n8n/analyze`: single n8n-friendly endpoint (`mode=dataset|kaggle|playwright|upload`)
 
 ## Local Setup
 
@@ -49,6 +50,10 @@ API: `http://127.0.0.1:8000`
 
 ## Usage Examples
 
+Base URLs:
+- Local: `http://127.0.0.1:8000`
+- Production: `https://xlangchain.onrender.com`
+
 ### 1) Analyze existing dataset (no refetch)
 
 ```bash
@@ -57,10 +62,22 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
   -d '{"keyword":"ai","limit":10,"source":"dataset"}'
 ```
 
+```bash
+curl -X POST "https://xlangchain.onrender.com/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"keyword":"ai","limit":10,"source":"dataset"}'
+```
+
 ### 2) Refetch from Kaggle using request keyword
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/refetch-kaggle" \
+  -H "Content-Type: application/json" \
+  -d '{"keyword":"ai","limit":10}'
+```
+
+```bash
+curl -X POST "https://xlangchain.onrender.com/refetch-kaggle" \
   -H "Content-Type: application/json" \
   -d '{"keyword":"ai","limit":10}'
 ```
@@ -76,6 +93,13 @@ curl -X POST "http://127.0.0.1:8000/analyze-file" \
   -F "limit=10"
 ```
 
+```bash
+curl -X POST "https://xlangchain.onrender.com/analyze-file" \
+  -F "file=@data/sample.csv" \
+  -F "keyword=ai" \
+  -F "limit=10"
+```
+
 ### 4) Playwright demo mode
 
 ```bash
@@ -83,6 +107,38 @@ export PLAYWRIGHT_DEMO_ENABLED=true  # PowerShell: $env:PLAYWRIGHT_DEMO_ENABLED=
 curl -X POST "http://127.0.0.1:8000/analyze" \
   -H "Content-Type: application/json" \
   -d '{"keyword":"ai","limit":5,"source":"playwright"}'
+```
+
+```bash
+curl -X POST "https://xlangchain.onrender.com/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"keyword":"ai","limit":5,"source":"playwright"}'
+```
+
+### 5) n8n unified endpoint (single HTTP node)
+
+```bash
+curl -X POST "http://127.0.0.1:8000/n8n/analyze" \
+  -F "mode=dataset" \
+  -F "keyword=ai" \
+  -F "limit=10"
+```
+
+```bash
+curl -X POST "https://xlangchain.onrender.com/n8n/analyze" \
+  -F "mode=dataset" \
+  -F "keyword=ai" \
+  -F "limit=10"
+```
+
+Upload mode:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/n8n/analyze" \
+  -F "mode=upload" \
+  -F "file=@data/sample.csv" \
+  -F "keyword=ai" \
+  -F "limit=10"
 ```
 
 ## Kaggle Setup
@@ -114,6 +170,93 @@ python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140 --target-nam
 Client should set secrets in Render:
 - `KAGGLE_USERNAME`
 - `KAGGLE_KEY`
+
+## Production Run (Container)
+
+Use CI to build and push a versioned image, then run it on your server/container platform.
+
+Build and tag:
+
+```bash
+docker build -t <registry>/<repo>:<tag> .
+```
+
+Push:
+
+```bash
+docker push <registry>/<repo>:<tag>
+```
+
+Run:
+
+```bash
+docker run -d \
+  --name x-insights-tool \
+  -p 8000:8000 \
+  -e KAGGLE_USERNAME=<your_username> \
+  -e KAGGLE_KEY=<your_key> \
+  -e KAGGLE_DATASET=kazanova/sentiment140 \
+  -e KAGGLE_MAX_ROWS=1000 \
+  -e KAGGLE_MAX_ROWS_RUNTIME=1000 \
+  -e PLAYWRIGHT_DEMO_ENABLED=false \
+  --restart unless-stopped \
+  <registry>/<repo>:<tag>
+```
+
+If you want persistent dataset files, mount a volume:
+
+```bash
+-v /srv/x-insights/data:/app/data
+```
+
+## n8n Integration (Step-by-Step)
+
+Use one endpoint for all modes: `POST /n8n/analyze`.
+
+1. Create a new n8n workflow.
+2. Add nodes in order:
+   - `Webhook` (POST trigger)
+   - `Edit Fields` (normalize payload)
+   - `HTTP Request` (call this API)
+   - `Respond to Webhook`
+3. In `Webhook` node:
+   - Method: `POST`
+   - Set **Respond** to `Using Respond to Webhook Node`
+4. In `Edit Fields`, add:
+   - `mode = {{$json.body.mode || 'dataset'}}`
+   - `keyword = {{$json.body.keyword || 'ai'}}`
+   - `limit = {{$json.body.limit || 10}}`
+   - `sentiment_filter = {{$json.body.sentiment_filter || ''}}`
+   - `since_date = {{$json.body.since_date || ''}}`
+5. In `HTTP Request` node:
+   - Method: `POST`
+   - URL: `https://xlangchain.onrender.com/n8n/analyze`
+   - Body type: `Form-Data`
+   - Fields:
+     - `mode = {{$json.mode}}`
+     - `keyword = {{$json.keyword}}`
+     - `limit = {{$json.limit}}`
+     - `sentiment_filter = {{$json.sentiment_filter}}` (optional)
+     - `since_date = {{$json.since_date}}` (optional)
+     - `file` as binary field only when `mode=upload`
+6. In `Respond to Webhook` node:
+   - Respond with JSON
+   - Response body: `={{$json}}`
+7. Test webhook with sample payloads:
+
+```json
+{"mode":"dataset","keyword":"ai","limit":5}
+```
+
+```json
+{"mode":"kaggle","keyword":"ai","limit":5}
+```
+
+```json
+{"mode":"playwright","keyword":"ai","limit":5}
+```
+
+For upload mode, send `mode=upload` plus CSV file binary.
 
 ## What I got stuck on (and workaround)
 
@@ -159,4 +302,4 @@ docker compose down
 The compose file mounts `./data` to `/app/data` so your local `sample.csv` is used directly.
 
 
-P.S - regarding the repository branching, it would be better to make the branch more secure by applying branch protection and PR review. However, for this fast prototype, all of the development was done in main branch. Creation of task branches are more ideal in the future official tasks.
+P.S - regarding the repository branching, it is more ideal to make the branch more secure by applying branch protection and PR review. However, for this fast prototype, all of the development was done in main branch. Creation of proper task branches and PR will be implemented in the future official tasks.
