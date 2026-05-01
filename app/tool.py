@@ -11,12 +11,14 @@ import pandas as pd
 from app.processing import clean_text, extract_hashtags, map_sentiment
 from app.sources.playwright_source import fetch_public_x_with_playwright
 
+DEFAULT_DATASET_PATH = Path(__file__).resolve().parent.parent / "data" / "sample.csv"
+
 
 @dataclass
 class TwitterDataTool:
     """Analyze public X/Twitter-like posts from a local CSV dataset."""
 
-    dataset_path: str | Path = "data/sample.csv"
+    dataset_path: str | Path = DEFAULT_DATASET_PATH
 
     def _load_playwright_rows(self, keyword: str, limit: int) -> pd.DataFrame:
         rows = fetch_public_x_with_playwright(keyword=keyword, limit=limit)
@@ -25,7 +27,7 @@ class TwitterDataTool:
         return self._normalize_columns(pd.DataFrame(rows))
 
     def _load(self) -> pd.DataFrame:
-        path = Path(self.dataset_path)
+        path = Path(self.dataset_path).expanduser().resolve()
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
         df = pd.read_csv(path)
