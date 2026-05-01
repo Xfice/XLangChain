@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 import pandas as pd
@@ -20,7 +21,25 @@ DEFAULT_DATASET_PATH = Path(__file__).resolve().parent.parent / "data" / "sample
 class TwitterDataTool:
     """Analyze public X/Twitter-like posts from a local CSV dataset."""
 
-    dataset_path: str | Path = DEFAULT_DATASET_PATH
+    dataset_path: str | Path = os.getenv("DATASET_PATH", str(DEFAULT_DATASET_PATH))
+
+    def _resolve_dataset_path(self) -> Path:
+        configured = Path(self.dataset_path).expanduser().resolve()
+        if configured.exists():
+            return configured
+
+        data_dir = DEFAULT_DATASET_PATH.parent
+        if configured.parent != data_dir.resolve():
+            return configured
+
+        candidates = sorted(
+            [path for path in data_dir.glob("*.csv") if path.name != "sample.csv"],
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            return candidates[0].resolve()
+        return configured
 
     @staticmethod
     def _write_bootstrap_dataset(path: Path) -> None:
@@ -47,6 +66,10 @@ class TwitterDataTool:
         )
         bootstrap.to_csv(path, index=False)
 
+    @staticmethod
+    def _has_kaggle_credentials() -> bool:
+        return bool(os.getenv("KAGGLE_USERNAME")) and bool(os.getenv("KAGGLE_KEY"))
+
     def _ensure_dataset_exists(
         self,
         path: Path,
@@ -60,6 +83,13 @@ class TwitterDataTool:
         max_rows = int(os.getenv("KAGGLE_MAX_ROWS", "100000"))
         selected_file = os.getenv("KAGGLE_FILE", "").strip() or None
         had_existing = path.exists()
+        can_attempt_kaggle = self._has_kaggle_credentials()
+
+        if not can_attempt_kaggle:
+            if had_existing:
+                return
+            self._write_bootstrap_dataset(path)
+            return
 
         try:
             fetch_kaggle_dataset_to_csv(
@@ -87,25 +117,44 @@ class TwitterDataTool:
             return pd.DataFrame(columns=["text", "sentiment", "date"])
         return self._normalize_columns(pd.DataFrame(rows))
 
+    def _read_dataset(self, path: Path) -> pd.DataFrame:
+        try:
+            df = pd.read_csv(path, low_memory=False)
+        except UnicodeDecodeError:
+            df = pd.read_csv(path, low_memory=False, encoding="latin-1")
+        if df.empty:
+            raise ValueError("Dataset is empty")
+
+        # Sentiment140 raw files are headerless; if first row becomes header,
+        # re-read with explicit positional columns to retain all rows.
+        lower_columns = [str(column).lower() for column in df.columns]
+        if (
+            len(lower_columns) >= 6
+            and lower_columns[0] in {"0", "2", "4"}
+            and "text" not in lower_columns
+        ):
+            return pd.read_csv(
+                path,
+                header=None,
+                names=["sentiment", "id", "date", "query", "user", "text"],
+                usecols=["sentiment", "date", "text"],
+                low_memory=False,
+            )
+        return df
+
     def _load(self) -> pd.DataFrame:
-        path = Path(self.dataset_path).expanduser().resolve()
+        path = self._resolve_dataset_path()
         self._ensure_dataset_exists(path, prefer_kaggle=True)
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
-        df = pd.read_csv(path)
-        if df.empty:
-            raise ValueError("Dataset is empty")
-        return self._normalize_columns(df)
+        return self._normalize_columns(self._read_dataset(path))
 
     def _load_with_kaggle_refresh(self) -> pd.DataFrame:
-        path = Path(self.dataset_path).expanduser().resolve()
+        path = self._resolve_dataset_path()
         self._ensure_dataset_exists(path, force_refresh=True)
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
-        df = pd.read_csv(path)
-        if df.empty:
-            raise ValueError("Dataset is empty")
-        return self._normalize_columns(df)
+        return self._normalize_columns(self._read_dataset(path))
 
     @staticmethod
     def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -132,6 +181,18 @@ class TwitterDataTool:
                 break
 
         normalized = df.rename(columns=column_map).copy()
+
+        # Sentiment140 raw format fallback (no header):
+        # sentiment,id,date,query,user,text
+        if "text" not in normalized.columns and normalized.shape[1] >= 6:
+            normalized = pd.DataFrame(
+                {
+                    "sentiment": normalized.iloc[:, 0],
+                    "date": normalized.iloc[:, 2],
+                    "text": normalized.iloc[:, 5],
+                }
+            )
+
         if "text" not in normalized.columns:
             raise ValueError("Dataset must include a text/tweet/content column")
 
@@ -171,7 +232,13 @@ class TwitterDataTool:
             else self._load()
         )
         keyword_value = keyword.strip().lower()
-        filtered = df[df["text"].str.lower().str.contains(keyword_value, na=False)].copy()
+        escaped_keyword = re.escape(keyword_value)
+        if re.fullmatch(r"\w+", keyword_value):
+            keyword_pattern = rf"\b{escaped_keyword}\b"
+        else:
+            keyword_pattern = escaped_keyword
+
+        filtered = df[df["text"].str.lower().str.contains(keyword_pattern, regex=True, na=False)].copy()
 
         if since_date:
             since = pd.to_datetime(since_date, errors="coerce")

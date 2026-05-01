@@ -8,15 +8,33 @@ from zipfile import ZipFile
 import pandas as pd
 
 
+def _balance_by_sentiment(dataframe: pd.DataFrame, max_rows: int) -> pd.DataFrame:
+    """Return a sentiment-balanced sample when multiple sentiment classes exist."""
+    if dataframe.empty or "sentiment" not in dataframe.columns:
+        return dataframe.head(max_rows)
+
+    working = dataframe.copy()
+    working["sentiment"] = working["sentiment"].astype(str)
+    groups = [group for _, group in working.groupby("sentiment")]
+    if len(groups) <= 1:
+        return working.head(max_rows)
+
+    per_class = max(1, max_rows // len(groups))
+    sampled = [group.sample(n=min(len(group), per_class), random_state=42) for group in groups]
+    combined = pd.concat(sampled, ignore_index=True)
+    return combined.sample(frac=1.0, random_state=42).head(max_rows).reset_index(drop=True)
+
+
 def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int) -> None:
     """Normalize arbitrary Kaggle CSV into columns: date,sentiment,text."""
     encoding_attempts = ["utf-8", "latin-1", "cp1252"]
+    read_limit = max_rows * 20 if max_rows > 0 else None
     dataframe: pd.DataFrame | None = None
     last_error: Exception | None = None
 
     for encoding in encoding_attempts:
         try:
-            dataframe = pd.read_csv(input_path, nrows=max_rows, encoding=encoding, low_memory=False)
+            dataframe = pd.read_csv(input_path, nrows=read_limit, encoding=encoding, low_memory=False)
             break
         except Exception as exc:  # pragma: no cover - depends on source CSV
             last_error = exc
@@ -59,7 +77,7 @@ def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int)
             header=None,
             names=["sentiment", "id", "date", "query", "user", "text"],
             usecols=["sentiment", "date", "text"],
-            nrows=max_rows,
+            nrows=read_limit,
             encoding="latin-1",
             low_memory=False,
         )
@@ -76,6 +94,7 @@ def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int)
     normalized["date"] = normalized["date"].astype(str)
     normalized = normalized.dropna(subset=["text"])
     normalized = normalized[normalized["text"].str.strip() != ""]
+    normalized = _balance_by_sentiment(normalized, max_rows=max_rows)
     normalized.to_csv(output_path, index=False)
 
 
@@ -130,4 +149,10 @@ def fetch_kaggle_dataset_to_csv(
         downloaded = candidates[0]
 
     _normalize_to_app_schema(downloaded, output_csv, max_rows=max_rows)
+
+    # Clean temporary artifacts produced by Kaggle download/extract.
+    zipped_download.unlink(missing_ok=True)
+    if downloaded != output_csv:
+        downloaded.unlink(missing_ok=True)
+
     return output_csv
