@@ -34,13 +34,17 @@ def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int)
 
     for encoding in encoding_attempts:
         try:
-            dataframe = pd.read_csv(input_path, nrows=read_limit, encoding=encoding, low_memory=False)
+            dataframe = pd.read_csv(
+                input_path, nrows=read_limit, encoding=encoding, low_memory=False
+            )
             break
         except Exception as exc:  # pragma: no cover - depends on source CSV
             last_error = exc
 
     if dataframe is None:
-        raise ValueError(f"Unable to read CSV {input_path} with supported encodings.") from last_error
+        raise ValueError(
+            f"Unable to read CSV {input_path} with supported encodings."
+        ) from last_error
 
     normalized: pd.DataFrame | None = None
     lowered = {str(column).lower(): column for column in dataframe.columns}
@@ -66,7 +70,9 @@ def _normalize_to_app_schema(input_path: Path, output_path: Path, max_rows: int)
         normalized = pd.DataFrame(
             {
                 "date": dataframe[date_column] if date_column is not None else pd.NA,
-                "sentiment": dataframe[sentiment_column] if sentiment_column is not None else "unknown",
+                "sentiment": (
+                    dataframe[sentiment_column] if sentiment_column is not None else "unknown"
+                ),
                 "text": dataframe[text_column],
             }
         )
@@ -125,7 +131,9 @@ def fetch_kaggle_dataset_to_csv(
     if selected is None:
         csv_files = [name for name in file_names if name.lower().endswith(".csv")]
         if not csv_files:
-            raise ValueError(f"No CSV files found in dataset '{dataset}'. Available files: {file_names}")
+            raise ValueError(
+                f"No CSV files found in dataset '{dataset}'. Available files: {file_names}"
+            )
         selected = csv_files[0]
 
     if selected not in file_names:
@@ -145,7 +153,9 @@ def fetch_kaggle_dataset_to_csv(
     if not downloaded.exists():
         candidates = list(output_dir.rglob(selected))
         if not candidates:
-            raise FileNotFoundError(f"Downloaded file '{selected}' was not found under {output_dir}.")
+            raise FileNotFoundError(
+                f"Downloaded file '{selected}' was not found under {output_dir}."
+            )
         downloaded = candidates[0]
 
     _normalize_to_app_schema(downloaded, output_csv, max_rows=max_rows)

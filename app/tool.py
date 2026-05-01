@@ -235,9 +235,7 @@ class TwitterDataTool:
         df = (
             self._load_playwright_rows(keyword=keyword, limit=limit)
             if source == "playwright"
-            else self._load_with_kaggle_refresh()
-            if source == "kaggle"
-            else self._load()
+            else self._load_with_kaggle_refresh() if source == "kaggle" else self._load()
         )
         keyword_value = keyword.strip().lower()
         escaped_keyword = re.escape(keyword_value)
@@ -246,7 +244,9 @@ class TwitterDataTool:
         else:
             keyword_pattern = escaped_keyword
 
-        filtered = df[df["text"].str.lower().str.contains(keyword_pattern, regex=True, na=False)].copy()
+        filtered = df[
+            df["text"].str.lower().str.contains(keyword_pattern, regex=True, na=False)
+        ].copy()
 
         if since_date:
             since = pd.to_datetime(since_date, errors="coerce")
