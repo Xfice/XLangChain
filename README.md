@@ -68,7 +68,7 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
 ```
 
 Source modes:
-- `dataset`: use local CSV (auto-bootstrap if missing)
+- `dataset`: tries Kaggle refresh first, then falls back to local CSV
 - `kaggle`: force Kaggle refresh, then analyze
 - `playwright`: optional public-page scraping
 

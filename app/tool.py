@@ -47,13 +47,19 @@ class TwitterDataTool:
         )
         bootstrap.to_csv(path, index=False)
 
-    def _ensure_dataset_exists(self, path: Path, force_refresh: bool = False) -> None:
-        if path.exists() and not force_refresh:
+    def _ensure_dataset_exists(
+        self,
+        path: Path,
+        force_refresh: bool = False,
+        prefer_kaggle: bool = False,
+    ) -> None:
+        if path.exists() and not force_refresh and not prefer_kaggle:
             return
 
         dataset_slug = os.getenv("KAGGLE_DATASET", "kazanova/sentiment140")
         max_rows = int(os.getenv("KAGGLE_MAX_ROWS", "100000"))
         selected_file = os.getenv("KAGGLE_FILE", "").strip() or None
+        had_existing = path.exists()
 
         try:
             fetch_kaggle_dataset_to_csv(
@@ -63,6 +69,9 @@ class TwitterDataTool:
                 max_rows=max_rows,
             )
         except BaseException as exc:
+            if had_existing:
+                # Keep existing local dataset when refresh attempt fails.
+                return
             # Keep service usable even when Kaggle creds/network are unavailable.
             self._write_bootstrap_dataset(path)
             if not path.exists():
@@ -80,7 +89,7 @@ class TwitterDataTool:
 
     def _load(self) -> pd.DataFrame:
         path = Path(self.dataset_path).expanduser().resolve()
-        self._ensure_dataset_exists(path)
+        self._ensure_dataset_exists(path, prefer_kaggle=True)
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
         df = pd.read_csv(path)
