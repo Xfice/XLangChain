@@ -1,172 +1,144 @@
 # X Insights LangChain Tool
 
-Standalone, reusable Python tool for fetching and processing public X/Twitter-like posts from a public dataset, wrapped in a LangGraph workflow and exposed via FastAPI.
+Standalone Python service for fetching and processing public X/Twitter-like data, orchestrated by LangGraph, and exposed through FastAPI for direct use or workflow automation (for example n8n webhooks).
 
-## What this project demonstrates
+## What this delivers for the client
 
-- Reusable `run()` tool interface for repeated keyword analysis tasks
-- LangGraph orchestration (`fetch -> summarize`)
-- HTTP access via FastAPI for workflow tools like n8n
-- Optional Playwright demo mode for public live-page scraping
-- CI/CD with linting, tests, and Docker build on push/PR
-- Containerized deployment-ready app
+- Reusable analysis tool with a stable `run()` interface
+- 3 flexible data sources for different client scenarios
+- HTTP-first integration (`/analyze`, `/refetch-kaggle`, `/analyze-file`)
+- CI/CD guardrails (lint, tests, Docker build)
+- Deployable on free-tier services (Render)
 
-## Architecture
+## 3 Source Modes (Flexibility)
 
-1. `TwitterDataTool.run()` loads and filters either:
-   - `source=dataset` (default, reproducible)
-   - `source=playwright` (optional, public-page live demo)
-2. Processing normalizes text/sentiment and extracts hashtag trends
-3. LangGraph agent summarizes trend outputs
-4. FastAPI endpoint returns structured analysis
+- `dataset`: analyze current local dataset (`data/sample.csv`) without refetching
+- `kaggle`: refetch from Kaggle using the current request keyword, then analyze
+- `playwright`: optional live public-page scrape mode for demo/experiments
 
-## Local setup
+This makes the system flexible for:
+- stable repeated reporting (`dataset`)
+- keyword-driven refreshes (`kaggle`)
+- quick live-page proof-of-concept (`playwright`)
+
+## API Flow
+
+1. Client calls one of the endpoints
+2. Source-specific fetch/load happens
+3. Text cleanup + sentiment mapping + hashtag extraction run
+4. LangGraph summarizes results
+5. API returns `summary` and structured `tool_output`
+
+## Endpoints
+
+- `GET /health`: health check
+- `POST /analyze`: analyze using selected `source`
+- `POST /refetch-kaggle`: explicitly refresh Kaggle dataset using payload keyword, then analyze
+- `POST /analyze-file`: analyze an uploaded CSV file (`multipart/form-data`)
+
+## Local Setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -e .[dev]
+pip install -e .[dev,data,scrape]
 uvicorn app.api:app --reload
 ```
 
-API will run at `http://127.0.0.1:8000`.
+API: `http://127.0.0.1:8000`
 
-## Automated Kaggle dataset refresh
+## Usage Examples
 
-If you have a Kaggle token, you can auto-download CSV data instead of manually replacing files.
-
-1. Configure credentials:
-   - Option A: set env vars `KAGGLE_USERNAME` and `KAGGLE_KEY`
-   - Option B: place `kaggle.json` at `%USERPROFILE%\.kaggle\kaggle.json` (Windows) or `~/.kaggle/kaggle.json`
-2. Install the optional data dependency:
-
-```bash
-pip install -e .[data]
-```
-
-3. Download and normalize a dataset CSV into `data/sample.csv`:
-
-```bash
-python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140 --max-rows 1000 --keyword-filter "<keyword>"
-```
-
-You can select a specific file when a dataset has multiple CSVs:
-
-```bash
-python scripts/fetch_kaggle_data.py --dataset <owner/dataset> --file <name.csv> --target-name sample.csv --max-rows 1000 --keyword-filter "<keyword>"
-```
-
-The script normalizes CSV output to the app schema (`date,sentiment,text`) and supports
-headerless Sentiment140 format.
-
-## API usage
+### 1) Analyze existing dataset (no refetch)
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"ai","limit":5,"sentiment_filter":"positive","source":"dataset"}'
+  -d '{"keyword":"ai","limit":10,"source":"dataset"}'
 ```
 
-Source modes:
-- `dataset`: uses the current local CSV without refetching
-- `kaggle`: force Kaggle refresh, then analyze
-- `playwright`: optional public-page scraping
-
-Manual refetch endpoint:
-- `POST /refetch-kaggle`: refetches Kaggle using request payload keyword, then analyzes
-- Response includes `tool_output.last_refetched_at` (UTC timestamp of latest Kaggle refresh)
-
-When `source="dataset"` and `data/sample.csv` is missing, `/analyze` tries to
-auto-fetch from Kaggle at request time using:
-- `KAGGLE_USERNAME`
-- `KAGGLE_KEY`
-- Optional: `KAGGLE_DATASET`, `KAGGLE_FILE`, `KAGGLE_MAX_ROWS`, `KAGGLE_KEYWORD_FILTER`
-- Optional (runtime safety): `KAGGLE_MAX_ROWS_RUNTIME` (default `1000`, capped to `5000`)
-
-To force Kaggle fetch on every call, use:
+### 2) Refetch from Kaggle using request keyword
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/analyze" \
+curl -X POST "http://127.0.0.1:8000/refetch-kaggle" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"<keyword>","limit":5,"source":"kaggle"}'
+  -d '{"keyword":"ai","limit":10}'
 ```
 
-Optional Playwright demo mode:
+Response includes `tool_output.last_refetched_at`.
+
+### 3) Analyze uploaded client CSV
 
 ```bash
-pip install -e .[scrape]
-python -m playwright install chromium
+curl -X POST "http://127.0.0.1:8000/analyze-file" \
+  -F "file=@data/sample.csv" \
+  -F "keyword=ai" \
+  -F "limit=10"
+```
+
+### 4) Playwright demo mode
+
+```bash
 export PLAYWRIGHT_DEMO_ENABLED=true  # PowerShell: $env:PLAYWRIGHT_DEMO_ENABLED="true"
 curl -X POST "http://127.0.0.1:8000/analyze" \
   -H "Content-Type: application/json" \
   -d '{"keyword":"ai","limit":5,"source":"playwright"}'
 ```
 
-Client CSV upload mode (optional):
+## Kaggle Setup
+
+Set credentials:
+- `KAGGLE_USERNAME`
+- `KAGGLE_KEY`
+
+Optional:
+- `KAGGLE_DATASET` (default `kazanova/sentiment140`)
+- `KAGGLE_FILE` (specific CSV file name)
+- `KAGGLE_MAX_ROWS` (default `1000`)
+- `KAGGLE_MAX_ROWS_RUNTIME` (default `1000`, capped for memory safety)
+- `KAGGLE_KEYWORD_FILTER` (optional build-time seed keyword)
+
+Manual script:
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/analyze-file" \
-  -F "file=@data/sample.csv" \
-  -F "keyword=<keyword>" \
-  -F "limit=5"
+python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140 --target-name sample.csv --max-rows 1000 --keyword-filter "<keyword>"
 ```
 
-Health check:
+## Render Deployment
 
-```bash
-curl "http://127.0.0.1:8000/health"
-```
+`render.yaml` is configured to:
+- install dependencies
+- seed data from Kaggle with bounded row count
+- run FastAPI via uvicorn
 
-## LangGraph usage in Python
+Client should set secrets in Render:
+- `KAGGLE_USERNAME`
+- `KAGGLE_KEY`
 
-```python
-from app.agent import run_agent
+## What I got stuck on (and workaround)
 
-result = run_agent(keyword="ai", limit=10, sentiment_filter="positive", source="dataset")
-print(result["summary"])
-```
+During implementation, large Kaggle CSV refreshes caused memory pressure/crashes on free-tier runtime.  
+Workaround applied:
+- strict row limits (`1000` default)
+- explicit refetch endpoint (`/refetch-kaggle`) instead of always refetching in `/analyze`
+- keyword-prioritized filtering to keep fetched data relevant
 
-## Tests and quality checks
+This keeps demo stability while still proving Kaggle integration.
 
-```bash
-ruff check .
-black --check .
-pytest -q
-docker build -t x-insights-tool .
-```
+## Production Recommendation (Kaggle + Playwright at scale)
+
+For higher volume, a database-backed architecture is better than repeatedly processing CSV files:
+- ingest job writes normalized rows into DB
+- API queries DB indexes by keyword/date/sentiment
+- scheduled refresh replaces request-time heavy fetches
+
+Current implementation intentionally limits to `1000` rows for free-tier demonstration and reliability.
 
 ## CI/CD
 
-GitHub Actions workflow runs:
-
+GitHub Actions runs:
 - `ruff check .`
 - `black --check .`
 - `pytest -q`
-- Docker image build
-
-## Deployment (Render example)
-
-1. Push this repo to GitHub
-2. Create a new Render Web Service
-3. Set Render env vars:
-   - `KAGGLE_USERNAME` (secret)
-   - `KAGGLE_KEY` (secret)
-- Optional: `KAGGLE_DATASET` (default `kazanova/sentiment140`)
-- Optional: `KAGGLE_MAX_ROWS` (default `1000` for free-tier stability)
-- Optional: `KAGGLE_KEYWORD_FILTER` (build-time seed keyword; runtime uses request keyword)
-4. Use `render.yaml` from this repo (recommended), or set build/start manually:
-  - Build: `pip install -e .[data] && python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-1000} --keyword-filter "${KAGGLE_KEYWORD_FILTER:-}"`
-   - Start: `uvicorn app.api:app --host 0.0.0.0 --port $PORT`
-5. Add your live URL below
-
-Live demo URL: https://xlangchain.onrender.com
-
-## Limitations and decisions
-
-- Uses a local public dataset for deterministic and reliable behavior over live scraping
-- Kaggle data refresh can be automated with `scripts/fetch_kaggle_data.py`; missing Kaggle creds will break deploy-time fetch
-- Playwright mode is intentionally minimal and opt-in (`PLAYWRIGHT_DEMO_ENABLED=true`) for demo use
-- Sentiment mapping is heuristic and based on common public dataset labels
-- Summary is deterministic (no external LLM required), which simplifies CI and reproducibility
-- Playwright scraping can break with UI changes and should be treated as non-critical/fallback
+- Docker build
 

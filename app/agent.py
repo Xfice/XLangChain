@@ -38,11 +38,14 @@ def _summarize(state: AgentState) -> AgentState:
     output = state["tool_output"]
     sentiment_distribution = output.get("sentiment_distribution", {})
     top_hashtags = output.get("top_hashtags", [])
-    dominant_sentiment = (
-        max(sentiment_distribution, key=sentiment_distribution.get)
-        if sentiment_distribution
-        else "unknown"
-    )
+    if sentiment_distribution:
+        top_count = max(sentiment_distribution.values())
+        leaders = sorted(
+            [label for label, count in sentiment_distribution.items() if count == top_count]
+        )
+        dominant_sentiment = ", ".join(leaders)
+    else:
+        dominant_sentiment = "unknown"
     hashtags = (
         ", ".join([f"#{tag} ({count})" for tag, count in top_hashtags[:3]])
         if top_hashtags
