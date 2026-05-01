@@ -10,6 +10,26 @@ Standalone Python service for fetching and processing public X/Twitter-like data
 - CI/CD guardrails (lint, tests, Docker build)
 - Deployable on free-tier services (Render)
 
+## For reviewers (~24h scope)
+
+This repo is intentionally scoped for a short take-home style review: independent problem-solving, pragmatic trade-offs, and something shippable (HTTP API + CI + deploy) rather than a maximal enterprise build.
+
+If you are reviewing end-to-end delivery, you might look at:
+
+| Area | What to check | Where |
+|------|----------------|--------|
+| **Structure & quality** | Clear split between tool (`app/tool.py`), orchestration (`app/agent.py`), API (`app/api.py`), and sources (`app/sources/`); error paths for missing data, bad inputs, and heavy loads | `app/`, `tests/` |
+| **Larger datasets** | Row caps, normalization, avoiding refetch on every `/analyze` request; optional explicit Kaggle refresh | `app/sources/kaggle_source.py`, `KAGGLE_MAX_ROWS*`, **What I got stuck on** below |
+| **Agent / tool E2E** | LangGraph `fetch → summarize` on a small sample | `app/agent.py`, `data/sample.csv`, `Local Setup` |
+| **Scraping reliability** | Playwright is opt-in, capped, and documented as demo-only (public pages, no login) | `app/sources/playwright_source.py`, env `PLAYWRIGHT_DEMO_ENABLED` |
+| **Documentation** | Runbook, endpoints, deploy, automation, limitations | This README |
+| **CI/CD** | Lint + tests + Docker build on push/PR | `.github/workflows/ci.yml` |
+| **Deployed API** | Live health + analyze paths | Production base URL in **Usage Examples** (`https://xlangchain.onrender.com`) |
+
+**Roadblocks and how they were handled** (data volume, free-tier memory, CI failures, scraping constraints) are summarized in **What I got stuck on (and workaround)** and **Production Recommendation** so you can see reasoning, not only the happy path.
+
+**Branching:** For this prototype, work was committed on `main`. A note on branch protection and PR-based flow for future work is at the end of this README.
+
 ## 3 Source Modes (Flexibility)
 
 - `dataset`: analyze current local dataset (`data/sample.csv`) without refetching
@@ -277,6 +297,9 @@ For higher volume, a database-backed architecture is better than repeatedly proc
 
 Current implementation intentionally limits to `1000` rows for free-tier demonstration and reliability. The free tier of Render doesn't allow DB capabilities.
 
+##Last hurdle I faced:
+-The extraction of the uploaded file to n8n that was sent via form-data since the file was binary-data. This can improve the diagram for the upload mode.
+
 ## CI/CD
 
 GitHub Actions runs:
@@ -301,5 +324,4 @@ docker compose down
 
 The compose file mounts `./data` to `/app/data` so your local `sample.csv` is used directly.
 
-
-P.S - regarding the repository branching, it is more ideal to make the branch more secure by applying branch protection and PR review. However, for this fast prototype, all of the development was done in main branch. Creation of proper task branches and PR will be implemented in the future official tasks.
+**Note:** Branch protection and PR-based development were out of scope for this prototype; see **For reviewers (~24h scope)** for context.
