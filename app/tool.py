@@ -47,8 +47,8 @@ class TwitterDataTool:
         )
         bootstrap.to_csv(path, index=False)
 
-    def _ensure_dataset_exists(self, path: Path) -> None:
-        if path.exists():
+    def _ensure_dataset_exists(self, path: Path, force_refresh: bool = False) -> None:
+        if path.exists() and not force_refresh:
             return
 
         dataset_slug = os.getenv("KAGGLE_DATASET", "kazanova/sentiment140")
@@ -81,6 +81,16 @@ class TwitterDataTool:
     def _load(self) -> pd.DataFrame:
         path = Path(self.dataset_path).expanduser().resolve()
         self._ensure_dataset_exists(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Dataset not found at {path}")
+        df = pd.read_csv(path)
+        if df.empty:
+            raise ValueError("Dataset is empty")
+        return self._normalize_columns(df)
+
+    def _load_with_kaggle_refresh(self) -> pd.DataFrame:
+        path = Path(self.dataset_path).expanduser().resolve()
+        self._ensure_dataset_exists(path, force_refresh=True)
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
         df = pd.read_csv(path)
@@ -141,12 +151,14 @@ class TwitterDataTool:
         if limit < 1:
             raise ValueError("limit must be >= 1")
 
-        if source not in {"dataset", "playwright"}:
-            raise ValueError("source must be 'dataset' or 'playwright'")
+        if source not in {"dataset", "playwright", "kaggle"}:
+            raise ValueError("source must be 'dataset', 'kaggle', or 'playwright'")
 
         df = (
             self._load_playwright_rows(keyword=keyword, limit=limit)
             if source == "playwright"
+            else self._load_with_kaggle_refresh()
+            if source == "kaggle"
             else self._load()
         )
         keyword_value = keyword.strip().lower()

@@ -67,11 +67,24 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
   -d '{"keyword":"ai","limit":5,"sentiment_filter":"positive","source":"dataset"}'
 ```
 
-When `source="dataset"` and `data/sample.csv` is missing, `/analyze` now tries to
+Source modes:
+- `dataset`: use local CSV (auto-bootstrap if missing)
+- `kaggle`: force Kaggle refresh, then analyze
+- `playwright`: optional public-page scraping
+
+When `source="dataset"` and `data/sample.csv` is missing, `/analyze` tries to
 auto-fetch from Kaggle at request time using:
 - `KAGGLE_USERNAME`
 - `KAGGLE_KEY`
 - Optional: `KAGGLE_DATASET`, `KAGGLE_FILE`, `KAGGLE_MAX_ROWS`
+
+To force Kaggle fetch on every call, use:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"keyword":"ai","limit":5,"source":"kaggle"}'
+```
 
 Optional Playwright demo mode:
 

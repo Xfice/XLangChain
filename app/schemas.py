@@ -13,9 +13,12 @@ class AnalyzeRequest(BaseModel):
     limit: int = Field(default=50, ge=1, le=500)
     sentiment_filter: str | None = Field(default=None, description="positive/negative/neutral")
     since_date: str | None = Field(default=None, description="ISO date string, e.g. 2024-01-01")
-    source: Literal["dataset", "playwright"] = Field(
+    source: Literal["dataset", "kaggle", "playwright"] = Field(
         default="dataset",
-        description="Data source mode. Use 'playwright' only for optional live demo scraping.",
+        description=(
+            "Data source mode. 'dataset' uses local CSV, 'kaggle' forces refresh from Kaggle, "
+            "and 'playwright' is optional public-page scraping."
+        ),
     )
 
 
