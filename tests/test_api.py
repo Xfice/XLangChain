@@ -20,3 +20,12 @@ def test_analyze():
     body = response.json()
     assert "summary" in body
     assert "tool_output" in body
+
+
+def test_analyze_playwright_disabled():
+    response = client.post(
+        "/analyze",
+        json={"keyword": "ai", "limit": 2, "source": "playwright"},
+    )
+    assert response.status_code == 400
+    assert "Playwright source is disabled" in response.json()["detail"]

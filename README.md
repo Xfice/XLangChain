@@ -7,12 +7,15 @@ Standalone, reusable Python tool for fetching and processing public X/Twitter-li
 - Reusable `run()` tool interface for repeated keyword analysis tasks
 - LangGraph orchestration (`fetch -> summarize`)
 - HTTP access via FastAPI for workflow tools like n8n
+- Optional Playwright demo mode for public live-page scraping
 - CI/CD with linting, tests, and Docker build on push/PR
 - Containerized deployment-ready app
 
 ## Architecture
 
-1. `TwitterDataTool.run()` loads and filters a public dataset CSV
+1. `TwitterDataTool.run()` loads and filters either:
+   - `source=dataset` (default, reproducible)
+   - `source=playwright` (optional, public-page live demo)
 2. Processing normalizes text/sentiment and extracts hashtag trends
 3. LangGraph agent summarizes trend outputs
 4. FastAPI endpoint returns structured analysis
@@ -28,12 +31,48 @@ uvicorn app.api:app --reload
 
 API will run at `http://127.0.0.1:8000`.
 
+## Automated Kaggle dataset refresh
+
+If you have a Kaggle token, you can auto-download CSV data instead of manually replacing files.
+
+1. Configure credentials:
+   - Option A: set env vars `KAGGLE_USERNAME` and `KAGGLE_KEY`
+   - Option B: place `kaggle.json` at `%USERPROFILE%\.kaggle\kaggle.json` (Windows) or `~/.kaggle/kaggle.json`
+2. Install the optional data dependency:
+
+```bash
+pip install -e .[data]
+```
+
+3. Download a dataset CSV into `data/sample.csv`:
+
+```bash
+python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140
+```
+
+You can select a specific file when a dataset has multiple CSVs:
+
+```bash
+python scripts/fetch_kaggle_data.py --dataset <owner/dataset> --file <name.csv> --target-name sample.csv
+```
+
 ## API usage
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"ai","limit":5,"sentiment_filter":"positive"}'
+  -d '{"keyword":"ai","limit":5,"sentiment_filter":"positive","source":"dataset"}'
+```
+
+Optional Playwright demo mode:
+
+```bash
+pip install -e .[scrape]
+python -m playwright install chromium
+export PLAYWRIGHT_DEMO_ENABLED=true  # PowerShell: $env:PLAYWRIGHT_DEMO_ENABLED="true"
+curl -X POST "http://127.0.0.1:8000/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"keyword":"ai","limit":5,"source":"playwright"}'
 ```
 
 Health check:
@@ -47,7 +86,7 @@ curl "http://127.0.0.1:8000/health"
 ```python
 from app.agent import run_agent
 
-result = run_agent(keyword="ai", limit=10, sentiment_filter="positive")
+result = run_agent(keyword="ai", limit=10, sentiment_filter="positive", source="dataset")
 print(result["summary"])
 ```
 
@@ -77,12 +116,14 @@ GitHub Actions workflow runs:
 4. Start command: `uvicorn app.api:app --host 0.0.0.0 --port $PORT`
 5. Add your live URL below
 
-Live demo URL: `TODO_ADD_DEPLOYED_URL`
+Live demo URL: https://xlangchain.onrender.com
 
 ## Limitations and decisions
 
 - Uses a local public dataset for deterministic and reliable behavior over live scraping
+- Kaggle data refresh can be automated with `scripts/fetch_kaggle_data.py`
+- Playwright mode is intentionally minimal and opt-in (`PLAYWRIGHT_DEMO_ENABLED=true`) for demo use
 - Sentiment mapping is heuristic and based on common public dataset labels
 - Summary is deterministic (no external LLM required), which simplifies CI and reproducibility
-- Optional next step: add Playwright scraper for public profile pages with strict rate limiting and terms compliance
+- Playwright scraping can break with UI changes and should be treated as non-critical/fallback
 

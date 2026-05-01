@@ -14,6 +14,7 @@ class AgentState(TypedDict, total=False):
     limit: int
     sentiment_filter: str | None
     since_date: str | None
+    source: str
     tool_output: dict[str, Any]
     summary: str
 
@@ -25,6 +26,7 @@ def _fetch(state: AgentState) -> AgentState:
         limit=state.get("limit", 50),
         sentiment_filter=state.get("sentiment_filter"),
         since_date=state.get("since_date"),
+        source=state.get("source", "dataset"),
     )
     return {"tool_output": output}
 
@@ -45,7 +47,8 @@ def _summarize(state: AgentState) -> AgentState:
     )
     summary = (
         f"Found {output['returned_count']} posts out of {output['total_matches']} matches for "
-        f"'{output['keyword']}'. Dominant sentiment: {dominant_sentiment}. "
+        f"'{output['keyword']}' using source={output.get('source', 'dataset')}. "
+        f"Dominant sentiment: {dominant_sentiment}. "
         f"Top hashtags: {hashtags}."
     )
     return {"summary": summary}
@@ -66,6 +69,7 @@ def run_agent(
     limit: int = 50,
     sentiment_filter: str | None = None,
     since_date: str | None = None,
+    source: str = "dataset",
 ) -> dict[str, Any]:
     app = build_agent()
     result = app.invoke(
@@ -74,6 +78,7 @@ def run_agent(
             "limit": limit,
             "sentiment_filter": sentiment_filter,
             "since_date": since_date,
+            "source": source,
         }
     )
     return {

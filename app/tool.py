@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 
 from app.processing import clean_text, extract_hashtags, map_sentiment
+from app.sources.playwright_source import fetch_public_x_with_playwright
 
 
 @dataclass
@@ -16,6 +17,12 @@ class TwitterDataTool:
     """Analyze public X/Twitter-like posts from a local CSV dataset."""
 
     dataset_path: str | Path = "data/sample.csv"
+
+    def _load_playwright_rows(self, keyword: str, limit: int) -> pd.DataFrame:
+        rows = fetch_public_x_with_playwright(keyword=keyword, limit=limit)
+        if not rows:
+            return pd.DataFrame(columns=["text", "sentiment", "date"])
+        return self._normalize_columns(pd.DataFrame(rows))
 
     def _load(self) -> pd.DataFrame:
         path = Path(self.dataset_path)
@@ -71,6 +78,7 @@ class TwitterDataTool:
         limit: int = 50,
         sentiment_filter: str | None = None,
         since_date: str | None = None,
+        source: str = "dataset",
     ) -> dict[str, Any]:
         """Filter and summarize posts by keyword and optional constraints."""
         if not keyword or not keyword.strip():
@@ -78,7 +86,14 @@ class TwitterDataTool:
         if limit < 1:
             raise ValueError("limit must be >= 1")
 
-        df = self._load()
+        if source not in {"dataset", "playwright"}:
+            raise ValueError("source must be 'dataset' or 'playwright'")
+
+        df = (
+            self._load_playwright_rows(keyword=keyword, limit=limit)
+            if source == "playwright"
+            else self._load()
+        )
         keyword_value = keyword.strip().lower()
         filtered = df[df["text"].str.lower().str.contains(keyword_value, na=False)].copy()
 
@@ -110,6 +125,7 @@ class TwitterDataTool:
 
         return {
             "keyword": keyword,
+            "source": source,
             "total_matches": int(filtered.shape[0]),
             "returned_count": int(limited.shape[0]),
             "sentiment_distribution": sentiment_distribution,

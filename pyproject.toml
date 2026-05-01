@@ -23,6 +23,12 @@ dev = [
   "ruff>=0.6.0",
   "httpx>=0.27.0",
 ]
+scrape = [
+  "playwright>=1.54.0",
+]
+data = [
+  "kaggle>=1.7.4.5",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
