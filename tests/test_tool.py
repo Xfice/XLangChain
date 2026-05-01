@@ -122,6 +122,7 @@ def test_tool_supports_sentiment140_raw_format(tmp_path):
     result = tool.run(keyword="ai", limit=5, source="dataset")
     assert result["returned_count"] == 1
     assert result["posts"][0]["sentiment"] == "positive"
+    assert result["posts"][0]["date"] is not None
 
 
 def test_keyword_filter_uses_word_boundary(tmp_path):
@@ -137,6 +138,34 @@ def test_keyword_filter_uses_word_boundary(tmp_path):
     result = tool.run(keyword="ai", limit=10, source="dataset")
     assert result["returned_count"] == 1
     assert "love ai agents" in result["posts"][0]["text"].lower()
+
+
+def test_kaggle_filter_is_keyword_aware_for_any_term(tmp_path, monkeypatch):
+    sample = tmp_path / "sample.csv"
+    sample.write_text(
+        "date,sentiment,text\n"
+        "2024-01-01,4,This ML model improved support workflows\n"
+        "2024-01-02,0,we edited html templates today\n",
+        encoding="utf-8",
+    )
+    tool = TwitterDataTool(dataset_path=sample)
+
+    # Keep existing file and avoid network by stubbing refresh behavior.
+    def _fake_fetch_kaggle_dataset_to_csv(
+        *, dataset, output_csv, selected_file, max_rows, keyword_filter
+    ):
+        assert keyword_filter == "ml"
+        return output_csv
+
+    from unittest.mock import patch
+
+    monkeypatch.setenv("KAGGLE_USERNAME", "test-user")
+    monkeypatch.setenv("KAGGLE_KEY", "test-key")
+    with patch("app.tool.fetch_kaggle_dataset_to_csv", _fake_fetch_kaggle_dataset_to_csv):
+        result = tool.run(keyword="ml", limit=10, source="kaggle")
+
+    assert result["returned_count"] == 1
+    assert "ml model improved" in result["posts"][0]["text"].lower()
 
 
 def test_resolve_dataset_path_prefers_new_csv_when_config_missing(tmp_path):

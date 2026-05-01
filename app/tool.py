@@ -221,9 +221,24 @@ class TwitterDataTool:
         if "date" not in normalized.columns:
             normalized["date"] = pd.NaT
 
+        normalized["_raw_date"] = normalized["date"].astype(str)
+
         normalized["text"] = normalized["text"].astype(str).map(clean_text)
         normalized["sentiment"] = normalized["sentiment"].map(map_sentiment)
-        normalized["date"] = pd.to_datetime(normalized["date"], errors="coerce")
+        normalized["date"] = pd.to_datetime(normalized["date"], errors="coerce", utc=True)
+        needs_fallback_parse = normalized["date"].isna() & normalized["_raw_date"].str.contains(
+            r"[A-Z]{2,4}\s+\d{4}$", regex=True, na=False
+        )
+        if needs_fallback_parse.any():
+            cleaned = normalized.loc[needs_fallback_parse, "_raw_date"].str.replace(
+                r"(\d{2}:\d{2}:\d{2})\s+[A-Z]{2,4}\s+(\d{4})",
+                r"\1 \2",
+                regex=True,
+            )
+            reparsed = pd.to_datetime(
+                cleaned, format="%a %b %d %H:%M:%S %Y", errors="coerce", utc=True
+            )
+            normalized.loc[needs_fallback_parse, "date"] = reparsed
         return normalized
 
     def run(
@@ -246,7 +261,11 @@ class TwitterDataTool:
         df = (
             self._load_playwright_rows(keyword=keyword, limit=limit)
             if source == "playwright"
-            else self._load_with_kaggle_refresh(keyword=keyword) if source == "kaggle" else self._load()
+            else (
+                self._load_with_kaggle_refresh(keyword=keyword)
+                if source == "kaggle"
+                else self._load()
+            )
         )
         keyword_value = keyword.strip().lower()
         escaped_keyword = re.escape(keyword_value)
@@ -258,6 +277,12 @@ class TwitterDataTool:
         filtered = df[
             df["text"].str.lower().str.contains(keyword_pattern, regex=True, na=False)
         ].copy()
+        # For Kaggle mode, enforce token/phrase-aware matching for any keyword.
+        # This keeps results relevant and avoids broad accidental matches.
+        if source == "kaggle":
+            filtered = filtered[
+                filtered["text"].str.lower().str.contains(keyword_pattern, regex=True, na=False)
+            ]
 
         if since_date:
             since = pd.to_datetime(since_date, errors="coerce")
@@ -280,7 +305,13 @@ class TwitterDataTool:
             {
                 "text": row["text"],
                 "sentiment": row["sentiment"],
-                "date": row["date"].isoformat() if pd.notna(row["date"]) else None,
+                "date": (
+                    row["date"].isoformat()
+                    if pd.notna(row["date"])
+                    else (
+                        row.get("_raw_date") if row.get("_raw_date") not in {"NaT", "nan"} else None
+                    )
+                ),
             }
             for _, row in limited.iterrows()
         ]
