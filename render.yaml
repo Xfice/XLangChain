@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: >
       pip install -e .[data] &&
-      python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-100000}
+      python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-1000}
     startCommand: uvicorn app.api:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: KAGGLE_USERNAME
@@ -15,4 +15,6 @@ services:
       - key: KAGGLE_DATASET
         value: kazanova/sentiment140
       - key: KAGGLE_MAX_ROWS
-        value: "100000"
+        value: "1000"
+      - key: KAGGLE_MAX_ROWS_RUNTIME
+        value: "1000"

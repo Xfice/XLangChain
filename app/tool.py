@@ -76,12 +76,13 @@ class TwitterDataTool:
         force_refresh: bool = False,
         prefer_kaggle: bool = False,
         strict_kaggle: bool = False,
+        max_rows_override: int | None = None,
     ) -> None:
         if path.exists() and not force_refresh and not prefer_kaggle:
             return
 
         dataset_slug = os.getenv("KAGGLE_DATASET", "kazanova/sentiment140")
-        max_rows = int(os.getenv("KAGGLE_MAX_ROWS", "100000"))
+        max_rows = max_rows_override or int(os.getenv("KAGGLE_MAX_ROWS", "1000"))
         selected_file = os.getenv("KAGGLE_FILE", "").strip() or None
         had_existing = path.exists()
         can_attempt_kaggle = self._has_kaggle_credentials()
@@ -159,7 +160,14 @@ class TwitterDataTool:
 
     def _load_with_kaggle_refresh(self) -> pd.DataFrame:
         path = self._resolve_dataset_path()
-        self._ensure_dataset_exists(path, force_refresh=True, strict_kaggle=True)
+        runtime_max_rows = int(os.getenv("KAGGLE_MAX_ROWS_RUNTIME", "1000"))
+        runtime_max_rows = max(200, min(runtime_max_rows, 5000))
+        self._ensure_dataset_exists(
+            path,
+            force_refresh=True,
+            strict_kaggle=True,
+            max_rows_override=runtime_max_rows,
+        )
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
         return self._normalize_columns(self._read_dataset(path))

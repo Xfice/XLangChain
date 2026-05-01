@@ -77,6 +77,7 @@ auto-fetch from Kaggle at request time using:
 - `KAGGLE_USERNAME`
 - `KAGGLE_KEY`
 - Optional: `KAGGLE_DATASET`, `KAGGLE_FILE`, `KAGGLE_MAX_ROWS`
+- Optional (runtime safety): `KAGGLE_MAX_ROWS_RUNTIME` (default `5000`, capped to `20000`)
 
 To force Kaggle fetch on every call, use:
 
@@ -137,10 +138,10 @@ GitHub Actions workflow runs:
 3. Set Render env vars:
    - `KAGGLE_USERNAME` (secret)
    - `KAGGLE_KEY` (secret)
-   - Optional: `KAGGLE_DATASET` (default `kazanova/sentiment140`)
-   - Optional: `KAGGLE_MAX_ROWS` (default `100000`)
+- Optional: `KAGGLE_DATASET` (default `kazanova/sentiment140`)
+- Optional: `KAGGLE_MAX_ROWS` (default `1000` for free-tier stability)
 4. Use `render.yaml` from this repo (recommended), or set build/start manually:
-   - Build: `pip install -e .[data] && python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-100000} && pip install -e .`
+  - Build: `pip install -e .[data] && python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-1000}`
    - Start: `uvicorn app.api:app --host 0.0.0.0 --port $PORT`
 5. Add your live URL below
 
