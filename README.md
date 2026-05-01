@@ -132,7 +132,7 @@ For higher volume, a database-backed architecture is better than repeatedly proc
 - API queries DB indexes by keyword/date/sentiment
 - scheduled refresh replaces request-time heavy fetches
 
-Current implementation intentionally limits to `1000` rows for free-tier demonstration and reliability.
+Current implementation intentionally limits to `1000` rows for free-tier demonstration and reliability. The free tier of Render doesn't allow DB capabilities.
 
 ## CI/CD
 
@@ -142,3 +142,21 @@ GitHub Actions runs:
 - `pytest -q`
 - Docker build
 
+## Docker Compose (one-command local run)
+
+```bash
+docker compose up --build
+```
+
+API will be available at `http://127.0.0.1:8000`.
+
+Stop:
+
+```bash
+docker compose down
+```
+
+The compose file mounts `./data` to `/app/data` so your local `sample.csv` is used directly.
+
+
+P.S - regarding the repository branching, it would be better to make the branch more secure by applying branch protection and PR review. However, for this fast prototype, all of the development was done in main branch. Creation of task branches are more ideal in the future official tasks.

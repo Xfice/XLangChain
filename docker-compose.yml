@@ -1,0 +1,18 @@
+services:
+  x-insights-tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: x-insights-tool:local
+    container_name: x-insights-tool
+    ports:
+      - "8000:8000"
+    environment:
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-neilricardosantiago}
+      KAGGLE_KEY: ${KAGGLE_KEY:-KGAT_10d20d58d5edb35169023aaddd69d77b}
+      KAGGLE_DATASET: ${KAGGLE_DATASET:-kazanova/sentiment140}
+      KAGGLE_MAX_ROWS: ${KAGGLE_MAX_ROWS:-1000}
+      KAGGLE_MAX_ROWS_RUNTIME: ${KAGGLE_MAX_ROWS_RUNTIME:-1000}
+      PLAYWRIGHT_DEMO_ENABLED: ${PLAYWRIGHT_DEMO_ENABLED:-false}
+    volumes:
+      - ./data:/app/data
