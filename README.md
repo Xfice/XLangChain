@@ -68,9 +68,13 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
 ```
 
 Source modes:
-- `dataset`: refreshes Kaggle using request keyword, then falls back to local CSV
+- `dataset`: uses the current local CSV without refetching
 - `kaggle`: force Kaggle refresh, then analyze
 - `playwright`: optional public-page scraping
+
+Manual refetch endpoint:
+- `POST /refetch-kaggle`: refetches Kaggle using request payload keyword, then analyzes
+- Response includes `tool_output.last_refetched_at` (UTC timestamp of latest Kaggle refresh)
 
 When `source="dataset"` and `data/sample.csv` is missing, `/analyze` tries to
 auto-fetch from Kaggle at request time using:

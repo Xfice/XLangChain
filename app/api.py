@@ -33,6 +33,21 @@ def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/refetch-kaggle", response_model=AnalyzeResponse)
+def refetch_kaggle(payload: AnalyzeRequest) -> AnalyzeResponse:
+    try:
+        result = run_agent(
+            keyword=payload.keyword,
+            limit=payload.limit,
+            sentiment_filter=payload.sentiment_filter,
+            since_date=payload.since_date,
+            source="kaggle",
+        )
+        return AnalyzeResponse(**result)
+    except Exception as exc:  # pragma: no cover - covered by tests through expected failures
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/analyze-file", response_model=AnalyzeResponse)
 async def analyze_file(
     file: UploadFile = File(...),

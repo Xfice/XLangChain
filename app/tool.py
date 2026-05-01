@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import re
@@ -22,6 +23,21 @@ class TwitterDataTool:
     """Analyze public X/Twitter-like posts from a local CSV dataset."""
 
     dataset_path: str | Path = os.getenv("DATASET_PATH", str(DEFAULT_DATASET_PATH))
+
+    @staticmethod
+    def _refetch_meta_path(dataset_path: Path) -> Path:
+        return dataset_path.parent / ".last_refetch.txt"
+
+    def _mark_refetched(self, dataset_path: Path) -> None:
+        stamp = datetime.now(timezone.utc).isoformat()
+        self._refetch_meta_path(dataset_path).write_text(stamp, encoding="utf-8")
+
+    def _get_last_refetched_at(self, dataset_path: Path) -> str | None:
+        meta = self._refetch_meta_path(dataset_path)
+        if not meta.exists():
+            return None
+        value = meta.read_text(encoding="utf-8").strip()
+        return value or None
 
     def _resolve_dataset_path(self) -> Path:
         configured = Path(self.dataset_path).expanduser().resolve()
@@ -107,6 +123,7 @@ class TwitterDataTool:
                 max_rows=max_rows,
                 keyword_filter=keyword_filter,
             )
+            self._mark_refetched(path)
         except BaseException as exc:
             if strict_kaggle:
                 raise ValueError(f"Kaggle fetch failed: {exc}") from exc
@@ -153,9 +170,9 @@ class TwitterDataTool:
             )
         return df
 
-    def _load(self, keyword: str | None = None) -> pd.DataFrame:
+    def _load(self) -> pd.DataFrame:
         path = self._resolve_dataset_path()
-        self._ensure_dataset_exists(path, prefer_kaggle=True, keyword_filter=keyword)
+        self._ensure_dataset_exists(path, prefer_kaggle=False)
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
         return self._normalize_columns(self._read_dataset(path))
@@ -264,7 +281,7 @@ class TwitterDataTool:
             else (
                 self._load_with_kaggle_refresh(keyword=keyword)
                 if source == "kaggle"
-                else self._load(keyword=keyword)
+                else self._load()
             )
         )
         keyword_value = keyword.strip().lower()
@@ -319,6 +336,7 @@ class TwitterDataTool:
         return {
             "keyword": keyword,
             "source": source,
+            "last_refetched_at": self._get_last_refetched_at(self._resolve_dataset_path()),
             "total_matches": int(filtered.shape[0]),
             "returned_count": int(limited.shape[0]),
             "sentiment_distribution": sentiment_distribution,

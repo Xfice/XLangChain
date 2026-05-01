@@ -65,6 +65,7 @@ def test_tool_kaggle_source_forces_refresh(tmp_path, monkeypatch):
     result = tool.run(keyword="ai", limit=5, source="kaggle")
     assert result["returned_count"] == 1
     assert "refreshed" in result["posts"][0]["text"].lower()
+    assert result["last_refetched_at"] is not None
 
 
 def test_tool_kaggle_source_errors_when_credentials_missing(tmp_path, monkeypatch):
@@ -81,33 +82,20 @@ def test_tool_kaggle_source_errors_when_credentials_missing(tmp_path, monkeypatc
         assert "credentials are missing" in str(exc).lower()
 
 
-def test_tool_dataset_source_prefers_kaggle_refresh(tmp_path, monkeypatch):
+def test_tool_dataset_source_uses_existing_dataset_without_refetch(tmp_path, monkeypatch):
     dataset = tmp_path / "sample.csv"
     dataset.write_text("date,sentiment,text\n2024-01-01,4,old row\n", encoding="utf-8")
     monkeypatch.setenv("KAGGLE_USERNAME", "test-user")
     monkeypatch.setenv("KAGGLE_KEY", "test-key")
 
-    def _fake_fetch_kaggle_dataset_to_csv(
-        *,
-        dataset,
-        output_csv,
-        selected_file,
-        max_rows,
-        keyword_filter,
-    ):
-        output_csv.write_text(
-            "date,sentiment,text\n2024-03-03,4,AI refreshed from dataset mode #AI\n",
-            encoding="utf-8",
-        )
-        assert keyword_filter == "ai"
-        return output_csv
+    def _raise_if_called(**kwargs):
+        raise AssertionError("dataset mode should not trigger kaggle refetch")
 
-    monkeypatch.setattr("app.tool.fetch_kaggle_dataset_to_csv", _fake_fetch_kaggle_dataset_to_csv)
+    monkeypatch.setattr("app.tool.fetch_kaggle_dataset_to_csv", _raise_if_called)
 
     tool = TwitterDataTool(dataset_path=dataset)
     result = tool.run(keyword="ai", limit=5, source="dataset")
-    assert result["returned_count"] == 1
-    assert "refreshed" in result["posts"][0]["text"].lower()
+    assert result["returned_count"] == 0
 
 
 def test_tool_supports_sentiment140_raw_format(tmp_path):

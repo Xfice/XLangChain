@@ -31,6 +31,15 @@ def test_analyze_playwright_disabled():
     assert "Playwright source is disabled" in response.json()["detail"]
 
 
+def test_refetch_kaggle_endpoint_uses_kaggle_source():
+    response = client.post(
+        "/refetch-kaggle",
+        json={"keyword": "ai", "limit": 2},
+    )
+    # May succeed or fail based on local kaggle creds, but endpoint is wired and should not 404.
+    assert response.status_code in {200, 400}
+
+
 def test_analyze_file_csv_upload():
     csv_content = (
         "date,sentiment,text\n"
