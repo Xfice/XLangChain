@@ -47,13 +47,13 @@ pip install -e .[data]
 3. Download and normalize a dataset CSV into `data/sample.csv`:
 
 ```bash
-python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140 --max-rows 100000
+python scripts/fetch_kaggle_data.py --dataset kazanova/sentiment140 --max-rows 1000 --keyword-filter "<keyword>"
 ```
 
 You can select a specific file when a dataset has multiple CSVs:
 
 ```bash
-python scripts/fetch_kaggle_data.py --dataset <owner/dataset> --file <name.csv> --target-name sample.csv --max-rows 100000
+python scripts/fetch_kaggle_data.py --dataset <owner/dataset> --file <name.csv> --target-name sample.csv --max-rows 1000 --keyword-filter "<keyword>"
 ```
 
 The script normalizes CSV output to the app schema (`date,sentiment,text`) and supports
@@ -68,7 +68,7 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
 ```
 
 Source modes:
-- `dataset`: tries Kaggle refresh first, then falls back to local CSV
+- `dataset`: refreshes Kaggle using request keyword, then falls back to local CSV
 - `kaggle`: force Kaggle refresh, then analyze
 - `playwright`: optional public-page scraping
 
@@ -76,15 +76,15 @@ When `source="dataset"` and `data/sample.csv` is missing, `/analyze` tries to
 auto-fetch from Kaggle at request time using:
 - `KAGGLE_USERNAME`
 - `KAGGLE_KEY`
-- Optional: `KAGGLE_DATASET`, `KAGGLE_FILE`, `KAGGLE_MAX_ROWS`
-- Optional (runtime safety): `KAGGLE_MAX_ROWS_RUNTIME` (default `5000`, capped to `20000`)
+- Optional: `KAGGLE_DATASET`, `KAGGLE_FILE`, `KAGGLE_MAX_ROWS`, `KAGGLE_KEYWORD_FILTER`
+- Optional (runtime safety): `KAGGLE_MAX_ROWS_RUNTIME` (default `1000`, capped to `5000`)
 
 To force Kaggle fetch on every call, use:
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"ai","limit":5,"source":"kaggle"}'
+  -d '{"keyword":"<keyword>","limit":5,"source":"kaggle"}'
 ```
 
 Optional Playwright demo mode:
@@ -103,7 +103,7 @@ Client CSV upload mode (optional):
 ```bash
 curl -X POST "http://127.0.0.1:8000/analyze-file" \
   -F "file=@data/sample.csv" \
-  -F "keyword=ai" \
+  -F "keyword=<keyword>" \
   -F "limit=5"
 ```
 
@@ -149,8 +149,9 @@ GitHub Actions workflow runs:
    - `KAGGLE_KEY` (secret)
 - Optional: `KAGGLE_DATASET` (default `kazanova/sentiment140`)
 - Optional: `KAGGLE_MAX_ROWS` (default `1000` for free-tier stability)
+- Optional: `KAGGLE_KEYWORD_FILTER` (build-time seed keyword; runtime uses request keyword)
 4. Use `render.yaml` from this repo (recommended), or set build/start manually:
-  - Build: `pip install -e .[data] && python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-1000}`
+  - Build: `pip install -e .[data] && python scripts/fetch_kaggle_data.py --dataset ${KAGGLE_DATASET:-kazanova/sentiment140} --max-rows ${KAGGLE_MAX_ROWS:-1000} --keyword-filter "${KAGGLE_KEYWORD_FILTER:-}"`
    - Start: `uvicorn app.api:app --host 0.0.0.0 --port $PORT`
 5. Add your live URL below
 

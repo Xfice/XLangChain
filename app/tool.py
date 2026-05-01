@@ -153,9 +153,9 @@ class TwitterDataTool:
             )
         return df
 
-    def _load(self) -> pd.DataFrame:
+    def _load(self, keyword: str | None = None) -> pd.DataFrame:
         path = self._resolve_dataset_path()
-        self._ensure_dataset_exists(path, prefer_kaggle=True)
+        self._ensure_dataset_exists(path, prefer_kaggle=True, keyword_filter=keyword)
         if not path.exists():
             raise FileNotFoundError(f"Dataset not found at {path}")
         return self._normalize_columns(self._read_dataset(path))
@@ -264,7 +264,7 @@ class TwitterDataTool:
             else (
                 self._load_with_kaggle_refresh(keyword=keyword)
                 if source == "kaggle"
-                else self._load()
+                else self._load(keyword=keyword)
             )
         )
         keyword_value = keyword.strip().lower()

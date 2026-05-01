@@ -40,6 +40,30 @@ def _apply_keyword_filter(dataframe: pd.DataFrame, keyword_filter: str | None) -
     return dataframe[dataframe["text"].str.lower().str.contains(pattern, regex=True, na=False)]
 
 
+def _rank_keyword_matches(dataframe: pd.DataFrame, keyword_filter: str | None) -> pd.DataFrame:
+    """Rank keyword matches so strongest relevance is kept first."""
+    if dataframe.empty or not keyword_filter:
+        return dataframe
+
+    keyword_value = keyword_filter.strip().lower()
+    if not keyword_value:
+        return dataframe
+
+    escaped_keyword = re.escape(keyword_value)
+    token_pattern = (
+        rf"\b{escaped_keyword}\b" if re.fullmatch(r"\w+", keyword_value) else escaped_keyword
+    )
+    hashtag_pattern = rf"#{escaped_keyword}\b"
+
+    ranked = dataframe.copy()
+    lowered_text = ranked["text"].str.lower()
+    ranked["_score"] = (
+        lowered_text.str.count(hashtag_pattern) * 5 + lowered_text.str.count(token_pattern) * 2
+    )
+    ranked = ranked.sort_values(by="_score", ascending=False).drop(columns=["_score"])
+    return ranked
+
+
 def _normalize_to_app_schema(
     input_path: Path,
     output_path: Path,
@@ -121,7 +145,10 @@ def _normalize_to_app_schema(
     normalized = normalized.dropna(subset=["text"])
     normalized = normalized[normalized["text"].str.strip() != ""]
     normalized = _apply_keyword_filter(normalized, keyword_filter=keyword_filter)
-    normalized = _balance_by_sentiment(normalized, max_rows=max_rows)
+    if keyword_filter:
+        normalized = _rank_keyword_matches(normalized, keyword_filter=keyword_filter).head(max_rows)
+    else:
+        normalized = _balance_by_sentiment(normalized, max_rows=max_rows)
     normalized.to_csv(output_path, index=False)
 
 

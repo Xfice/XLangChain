@@ -99,7 +99,7 @@ def test_tool_dataset_source_prefers_kaggle_refresh(tmp_path, monkeypatch):
             "date,sentiment,text\n2024-03-03,4,AI refreshed from dataset mode #AI\n",
             encoding="utf-8",
         )
-        assert keyword_filter is None
+        assert keyword_filter == "ai"
         return output_csv
 
     monkeypatch.setattr("app.tool.fetch_kaggle_dataset_to_csv", _fake_fetch_kaggle_dataset_to_csv)
