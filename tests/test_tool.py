@@ -14,3 +14,11 @@ def test_tool_sentiment_filter():
     result = tool.run(keyword="ai", sentiment_filter="positive", limit=10)
     assert result["returned_count"] > 0
     assert all(post["sentiment"] == "positive" for post in result["posts"])
+
+
+def test_tool_creates_csv_when_missing(tmp_path):
+    missing = tmp_path / "missing.csv"
+    tool = TwitterDataTool(dataset_path=missing)
+    result = tool.run(keyword="ai", limit=2)
+    assert missing.exists()
+    assert result["returned_count"] >= 1

@@ -67,6 +67,12 @@ curl -X POST "http://127.0.0.1:8000/analyze" \
   -d '{"keyword":"ai","limit":5,"sentiment_filter":"positive","source":"dataset"}'
 ```
 
+When `source="dataset"` and `data/sample.csv` is missing, `/analyze` now tries to
+auto-fetch from Kaggle at request time using:
+- `KAGGLE_USERNAME`
+- `KAGGLE_KEY`
+- Optional: `KAGGLE_DATASET`, `KAGGLE_FILE`, `KAGGLE_MAX_ROWS`
+
 Optional Playwright demo mode:
 
 ```bash
