@@ -335,7 +335,7 @@ class TwitterDataTool:
 
         return {
             "keyword": keyword,
-            "source": source,
+            "mode": source,
             "last_refetched_at": self._get_last_refetched_at(self._resolve_dataset_path()),
             "total_matches": int(filtered.shape[0]),
             "returned_count": int(limited.shape[0]),

@@ -25,7 +25,7 @@ def test_analyze():
 def test_analyze_playwright_disabled():
     response = client.post(
         "/analyze",
-        json={"keyword": "ai", "limit": 2, "source": "playwright"},
+        json={"keyword": "ai", "limit": 2, "mode": "playwright"},
     )
     assert response.status_code == 400
     assert "Playwright source is disabled" in response.json()["detail"]
@@ -74,7 +74,7 @@ def test_n8n_analyze_dataset_mode():
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["tool_output"]["source"] == "dataset"
+    assert body["tool_output"]["mode"] == "dataset"
 
 
 def test_n8n_analyze_upload_mode():

@@ -53,7 +53,7 @@ def _summarize(state: AgentState) -> AgentState:
     )
     summary = (
         f"Found {output['returned_count']} posts out of {output['total_matches']} matches for "
-        f"'{output['keyword']}' using source={output.get('source', 'dataset')}. "
+        f"'{output['keyword']}' using mode={output.get('mode', 'dataset')}. "
         f"Dominant sentiment: {dominant_sentiment}. "
         f"Top hashtags: {hashtags}."
     )

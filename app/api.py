@@ -26,7 +26,7 @@ def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
             limit=payload.limit,
             sentiment_filter=payload.sentiment_filter,
             since_date=payload.since_date,
-            source=payload.source,
+            source=payload.mode,
         )
         return AnalyzeResponse(**result)
     except Exception as exc:  # pragma: no cover - covered by tests through expected failures

@@ -32,7 +32,7 @@ This makes the system flexible for:
 ## Endpoints
 
 - `GET /health`: health check
-- `POST /analyze`: analyze using selected `source`
+- `POST /analyze`: analyze using selected `mode` (JSON body: `dataset`, `kaggle`, or `playwright`)
 - `POST /refetch-kaggle`: explicitly refresh Kaggle dataset using payload keyword, then analyze
 - `POST /analyze-file`: analyze an uploaded CSV file (`multipart/form-data`)
 - `POST /n8n/analyze`: single n8n-friendly endpoint (`mode=dataset|kaggle|playwright|upload`)
@@ -59,13 +59,13 @@ Base URLs:
 ```bash
 curl -X POST "http://127.0.0.1:8000/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"ai","limit":10,"source":"dataset"}'
+  -d '{"keyword":"ai","limit":10,"mode":"dataset"}'
 ```
 
 ```bash
 curl -X POST "https://xlangchain.onrender.com/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"ai","limit":10,"source":"dataset"}'
+  -d '{"keyword":"ai","limit":10,"mode":"dataset"}'
 ```
 
 ### 2) Refetch from Kaggle using request keyword
@@ -106,13 +106,13 @@ curl -X POST "https://xlangchain.onrender.com/analyze-file" \
 export PLAYWRIGHT_DEMO_ENABLED=true  # PowerShell: $env:PLAYWRIGHT_DEMO_ENABLED="true"
 curl -X POST "http://127.0.0.1:8000/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"ai","limit":5,"source":"playwright"}'
+  -d '{"keyword":"ai","limit":5,"mode":"playwright"}'
 ```
 
 ```bash
 curl -X POST "https://xlangchain.onrender.com/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"keyword":"ai","limit":5,"source":"playwright"}'
+  -d '{"keyword":"ai","limit":5,"mode":"playwright"}'
 ```
 
 ### 5) n8n unified endpoint (single HTTP node)
